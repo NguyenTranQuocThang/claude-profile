@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create *)",
+      "Bash(npm install *)",
+      "Bash(curl -s http://localhost:3001/api/profiles)",
+      "Bash(curl *)",
+      "Bash(node *)",
+      "Bash(python3 -m json.tool)",
+      "Bash(git remote *)"
+    ]
+  }
+}
