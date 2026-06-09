@@ -48,18 +48,22 @@ function App() {
       body: JSON.stringify({ id }),
     })
     if (!res.ok) {
-      showToast('Failed to switch profile', false)
+      const err = await res.json().catch(() => ({})) as { error?: string; reason?: string }
+      const msg = err.reason ? `${err.error ?? 'Switch failed'}: ${err.reason}` : (err.error ?? 'Failed to switch profile')
+      showToast(msg, false, 8000)
       return
     }
 
-    const { didLogout } = await res.json()
+    const { didLogout, restoredOAuth } = await res.json()
     fetchProfiles()
 
     if (profile?.type === 'company') {
-      const logoutNote = didLogout ? 'Logged out of personal account. ' : ''
-      showToast(`${logoutNote}Open a new terminal → run Claude Code`, true, 8000)
+      const logoutNote = didLogout ? 'Đã logout claude.ai. ' : ''
+      showToast(`${logoutNote}Đóng Claude Code hiện tại → mở terminal mới → chạy claude`, true, 10000)
+    } else if (restoredOAuth) {
+      showToast('Đã restore session personal. Đóng Claude Code hiện tại → mở terminal mới → chạy claude', true, 10000)
     } else {
-      showToast('Switched to personal. Open a new terminal → run: claude login', true, 8000)
+      showToast('Chưa có session personal đã lưu. Đóng Claude Code → terminal mới → chạy: claude auth login', true, 10000)
     }
   }
 

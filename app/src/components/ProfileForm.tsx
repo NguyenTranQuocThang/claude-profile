@@ -12,6 +12,8 @@ export function ProfileForm({ initial, onSave, onCancel }: Props) {
   const [name, setName] = useState(initial?.name ?? '')
   const [apiKey, setApiKey] = useState(initial?.type === 'company' ? initial.apiKey : '')
   const [showKey, setShowKey] = useState(false)
+  const [keyStatus, setKeyStatus] = useState<{ valid: boolean; reason?: string } | null>(null)
+  const [verifying, setVerifying] = useState(false)
   const [gitName, setGitName] = useState(initial?.git?.gitName ?? '')
   const [gitEmail, setGitEmail] = useState(initial?.git?.gitEmail ?? '')
 
@@ -25,10 +27,37 @@ export function ProfileForm({ initial, onSave, onCancel }: Props) {
     }
   }, [initial])
 
+  function isValidKeyFormat(key: string) {
+    return /^sk-ant-(api03|oat01)-[A-Za-z0-9_-]{20,}$/.test(key)
+  }
+
+  async function verifyKey() {
+    if (!apiKey.trim()) return
+    if (!isValidKeyFormat(apiKey.trim())) {
+      setKeyStatus({ valid: false, reason: 'Key phải bắt đầu bằng sk-ant-api03-' })
+      return
+    }
+    setVerifying(true)
+    setKeyStatus(null)
+    try {
+      const res = await fetch('/api/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: apiKey.trim() }),
+      })
+      setKeyStatus(await res.json())
+    } catch {
+      setKeyStatus({ valid: false, reason: 'Network error' })
+    } finally {
+      setVerifying(false)
+    }
+  }
+
   function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
     if (type === 'company' && !apiKey.trim()) return
+    if (type === 'company' && !isValidKeyFormat(apiKey.trim())) return
 
     const git: GitConfig | undefined =
       gitName.trim() || gitEmail.trim()
@@ -96,8 +125,8 @@ export function ProfileForm({ initial, onSave, onCancel }: Props) {
                 <input
                   type={showKey ? 'text' : 'password'}
                   value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="sk-ant-..."
+                  onChange={(e) => { setApiKey(e.target.value); setKeyStatus(null) }}
+                  placeholder="sk-ant-api03-..."
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 pr-12 font-mono text-sm outline-none transition focus:border-claude-400 focus:ring-2 focus:ring-claude-100 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:ring-claude-900/30"
                   required
                 />
@@ -109,15 +138,30 @@ export function ProfileForm({ initial, onSave, onCancel }: Props) {
                   {showKey ? '🙈' : '👁️'}
                 </button>
               </div>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={verifyKey}
+                  disabled={!apiKey.trim() || verifying}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+                >
+                  {verifying ? 'Checking...' : 'Verify key'}
+                </button>
+                {keyStatus && (
+                  <span className={`text-xs font-medium ${keyStatus.valid ? 'text-green-600' : 'text-red-500'}`}>
+                    {keyStatus.valid ? '✓ Valid' : `✗ ${keyStatus.reason ?? 'Invalid'}`}
+                  </span>
+                )}
+              </div>
               <p className="mt-1 text-xs text-gray-500">
-                Stored locally in ~/.claude-switcher/profiles.json
+                Lấy key tại console.anthropic.com → API Keys. Stored locally in ~/.claude-switcher/profiles.json
               </p>
             </div>
           )}
 
           {type === 'personal' && (
             <div className="rounded-xl bg-violet-50 p-3 text-sm text-violet-700 dark:bg-violet-950/30 dark:text-violet-300">
-              Sẽ dùng OAuth credentials từ <code className="font-mono">~/.claude/</code> (đăng nhập bằng <code className="font-mono">claude auth login</code>)
+              Dùng OAuth claude.ai. Login 1 lần — session sẽ được backup khi switch sang company, restore tự động khi switch lại.
             </div>
           )}
 
