@@ -3,6 +3,10 @@ import cors from 'cors'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 
 const app = express()
 app.use(cors())
@@ -134,8 +138,17 @@ app.delete('/api/profiles/:id', (req, res) => {
   res.json({ ok: true })
 })
 
+async function claudeLogout(): Promise<boolean> {
+  try {
+    await execAsync('claude logout 2>/dev/null', { timeout: 10000 })
+    return true
+  } catch {
+    return false
+  }
+}
+
 // POST /api/switch — switch active profile
-app.post('/api/switch', (req, res) => {
+app.post('/api/switch', async (req, res) => {
   const { id } = req.body as { id: string }
   const store = readStore()
   const profile = store.profiles.find((p) => p.id === id)
@@ -143,11 +156,13 @@ app.post('/api/switch', (req, res) => {
 
   ensureDirs()
 
-  // Write Claude env
-  if (profile.type === 'personal') {
-    fs.writeFileSync(ACTIVE_ENV_FILE, '# personal\nunset ANTHROPIC_API_KEY 2>/dev/null || true\n')
-  } else {
+  let didLogout = false
+
+  if (profile.type === 'company') {
+    didLogout = await claudeLogout()
     fs.writeFileSync(ACTIVE_ENV_FILE, `export ANTHROPIC_API_KEY="${profile.apiKey}"\n`)
+  } else {
+    fs.writeFileSync(ACTIVE_ENV_FILE, '# personal\nunset ANTHROPIC_API_KEY 2>/dev/null || true\n')
   }
 
   // Write ~/.gitconfig [user] section if git config is set
@@ -158,7 +173,7 @@ app.post('/api/switch', (req, res) => {
   store.activeId = id
   writeStore(store)
 
-  res.json({ ok: true, profile, envFile: ACTIVE_ENV_FILE })
+  res.json({ ok: true, profile, envFile: ACTIVE_ENV_FILE, didLogout })
 })
 
 // POST /api/verify — verify a company API key works

@@ -16,9 +16,9 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [serverDown, setServerDown] = useState(false)
 
-  function showToast(msg: string, ok = true) {
+  function showToast(msg: string, ok = true, duration = 6000) {
     setToast({ msg, ok })
-    setTimeout(() => setToast(null), 5000)
+    setTimeout(() => setToast(null), duration)
   }
 
   async function fetchProfiles() {
@@ -52,27 +52,15 @@ function App() {
       return
     }
 
+    const { didLogout } = await res.json()
     fetchProfiles()
 
-    // Verify API key in background (non-blocking) — only for direct Anthropic keys
-    if (profile?.type === 'company' && profile.apiKey?.startsWith('sk-ant-')) {
-      const verifyRes = await fetch(`${API}/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: profile.apiKey }),
-      })
-      const { valid, reason } = await verifyRes.json()
-      if (!valid) {
-        showToast(`Switched, but key may be invalid: ${reason}`, false)
-        return
-      }
+    if (profile?.type === 'company') {
+      const logoutNote = didLogout ? 'Logged out of personal account. ' : ''
+      showToast(`${logoutNote}Open a new terminal → run Claude Code`, true, 8000)
+    } else {
+      showToast('Switched to personal. Open a new terminal → run: claude login', true, 8000)
     }
-
-    const msg =
-      profile?.type === 'company'
-        ? 'Switched! Run: source ~/.claude-switcher/active.env'
-        : 'Switched to personal. Open a new terminal to apply.'
-    showToast(msg)
   }
 
   async function handleSave(data: Omit<Profile, 'id'> & { id?: string }) {
